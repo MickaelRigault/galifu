@@ -62,7 +62,7 @@ class MultiSlicer( object ):
         if waveref is None:
             raise ValueError("You need to provide either waveref and inst_index")
             
-        return self.adr.refract(self._adr_xref, self._adr_yref, imgsl.instrument.lbda)
+        return self.adr.refract(self._adr_xref, self._adr_yref, waveref)
             
     def get_instrument_bandpass(self, inst_index):
         """ """
