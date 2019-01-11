@@ -1,11 +1,14 @@
 ###########
 # IMPORTS #
 ###########
-
-import numpy as py
+import os
+import numpy as np
 import sncosmo
+
 from pyifu import spectroscopy
-SED_LIB_SOURCE = "../data/SED/templates/"
+
+# Where model spectra are:
+SED_LIB_SOURCE = os.path.dirname(os.path.realpath(__file__))+"/data/"
 
 class SEDFitter( object ):
     
@@ -19,6 +22,7 @@ class SEDFitter( object ):
         
     def load_speclib(self, used_met="008", clean = True, forcelbda=None):
         """ """
+        from glob import glob
         files = glob(SED_LIB_SOURCE+'*_z%s*'%used_met) #one may change z008 to get other kinds of spec.
         self.specmodel_list = []
 
@@ -145,5 +149,5 @@ class SEDFitter( object ):
     def band_lbda(self):
         """ """
         if not hasattr(self, "bandpasses"):
-            self.load_sdssfilters(bands=bands)
+            self.load_sdssfilters(bands=self.bands)
         return [self.bandpasses[b].wave_eff for b in self.bands]

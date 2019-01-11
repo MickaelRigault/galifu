@@ -10,8 +10,8 @@ MAINTAINER = 'Mickael Rigault'
 MAINTAINER_EMAIL = 'm.rigault@ipnl.in2p3.fr'
 URL = 'https://github.com/MickaelRigault/galifu'
 LICENSE = 'Apache 2.0'
-DOWNLOAD_URL = 'https://github.com/MickaelRigault/galifu/0.1'
-VERSION = '0.1.0'
+DOWNLOAD_URL = 'https://github.com/MickaelRigault/galifu/0.2'
+VERSION = '0.2.0'
 
 try:
     from setuptools import setup, find_packages
@@ -64,7 +64,7 @@ if __name__ == "__main__":
           install_requires=install_requires,
           #scripts=["bin/BLA.py"],
           packages=packages,
-          package_data={},
+          package_data={'galifu': ['data/*']},
           classifiers=[
               'Intended Audience :: Science/Research',
               'Programming Language :: Python :: 2.7',
