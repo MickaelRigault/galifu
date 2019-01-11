@@ -18,12 +18,10 @@ from astrobject import instruments
 class ImageSlicer( object ):
     """ From an astrobject instrument do a slice """
     
-    def __init__(self,  instrument, cube=None):
+    def __init__(self,  instrument):
         """  """
         self.instrument    = instrument
         self.photo_polygon = PhotoPolygon(self.instrument.data, self.instrument.var)
-        if cube is not None:
-            self.set_cube()
         
     def set_cube(self, cube, target_loc=[0,0], 
                  spaxel_in_arcsec=0.75, cube_rotation=0,
@@ -122,7 +120,7 @@ class ImageSlicer( object ):
         #    You need to run `fillup_slices()` to fill them up.
         
     def fillup_slices(self, indexes=None, use_subpixelization=False,
-                          update_residual=True):
+                          update_residual=True, match_scale=True):
         """ Measure the """
         if not hasattr(self, "pixel_slice"):
             raise AttributeError("No slice setup. run setup_slice() first.")
@@ -132,13 +130,19 @@ class ImageSlicer( object ):
         self.pixel_slice.set_data(data, variance=var)
         self.spaxel_slice.set_data(data, variance=var)
         if update_residual:
-            self.measure_residual()
+            if match_scale:
+                self.match_scale()
+            else:
+                self.measure_residual()
 
-    def measure_residual(self):
+    def measure_residual(self, cube_amplitude=1, img_amplitude=1, background=1):
         """ fillup the residual slice = cube_slice - (spaxel_slice+bkgd_slice) """
-        resdata = self.cube_slice.data - (self.spaxel_slice.data + self.bkgd_slice.data)
+        
+        resdata = self.cube_slice.data*cube_amplitude - img_amplitude*(self.spaxel_slice.data + self.bkgd_slice.data*background)
         if self.cube_slice.has_variance() and self.spaxel_slice.has_variance():
-            resvar = self.cube_slice.variance + self.spaxel_slice.variance
+            resvar = self.cube_slice.variance*cube_amplitude**2 + self.spaxel_slice.variance*img_amplitude**2
+        elif self.cube_slice.has_variance():
+            resvar = self.cube_slice.variance*cube_amplitude**2
         else:
             resvar = None
 
@@ -147,7 +151,7 @@ class ImageSlicer( object ):
     # ================ #
     #  Scale           #
     # ================ #
-    def match_scale(self):
+    def match_scale(self, refunit="image"):
         """ """
         from scipy.optimize import minimize
         #
@@ -157,20 +161,38 @@ class ImageSlicer( object ):
         # Step 1: Get the single 1D array (data and model and background)
         norm_data  = self.cube_slice.rawdata.mean()
         norm_model = self.spaxel_slice.rawdata.mean()
+        self.norm_data = norm_data
+        self.norm_model = norm_model
         data_      = self.cube_slice.data   / norm_data
         var_       = 1 if not self.cube_slice.has_variance() else self.cube_slice.variance / norm_data**2
         model_     = self.spaxel_slice.data / norm_model
         bkgd_      = np.ones( len(model_) ) # No structure
+        
         def _get_res_(amplitude, background):
             """ """
-            return data_ - (model_*amplitude + bkgd_*background)
+            return data_ - amplitude*(model_ + bkgd_*background)
         
         def _chi2_( parameters ):
             """ """
             return np.sum(_get_res_(*parameters)**2/var_**2)
         
         self._rawres = minimize( _chi2_, [1,0] )
-        self.residual_slice.set_data( _get_res_(*self._rawres["x"]), variance=var_)
+        self._res_in_cubeunit    = dict(cube_amplitude=1, img_amplitude=self._rawres["x"][0] * norm_data/norm_model,
+                                           background=self._rawres["x"][1])
+        
+        self._res_in_imgunit  = dict(cube_amplitude=self.norm_model/(self.norm_data*self._rawres["x"][0]),
+                                         img_amplitude=1,
+                                         background=self._rawres["x"][1])
+        
+        # Record the residual slice in Data (==Cube) Unit.
+        if refunit in ["cube"]:
+            # If it cube unit, let's leave cube to 1 and scale img
+            self.measure_residual(**self._res_in_cubeunit)
+        elif ["img", "sdss", "image"]:
+            self.measure_residual(**self._res_in_imgunit)
+        else:
+            print("WARNING: unknonwn unit, measure_residual skyped (do e.g. self.measure_residual(**self._res_in_imgunit)")
+
         return self._rawres
         
         
