@@ -11,6 +11,97 @@ from shapely import vectorized
 from astrobject import instruments
 
 #
+# MultiImage Slicer
+#
+class MultiSlicer( object ):
+    """ """
+    def __init__(self):
+        """ """
+        self.imageslicer = {}
+        
+    def set_cube(self, cube, spaxel_in_arcsec=0.55, rotation=0):
+        """ """
+        self.cube       = cube
+        self._cube_rotation = rotation
+        self._cube_spaxel_arcsec = spaxel_in_arcsec
+
+    def set_adr(self, adr, xref, yref, **kwargs):
+        """ """
+        adr.set(**kwargs)
+        self.adr       = adr
+        self._adr_xref = xref
+        self._adr_yref = yref
+        
+    def add_instrument(self, instrument, index=None, fillup=True):
+        """ """
+        from galifu import photoslicer
+        if index is None:
+            index = instrument.bandname
+        
+        imgs_ = photoslicer.ImageSlicer(instrument)
+        if self.has_cube() and self.has_adr():
+            
+            imgs_.set_cube(self.cube, 
+                           target_loc = self.get_targetloc(waveref=instrument.bandpass.wave_eff), 
+                           setup_slices=True, correct_for_rotation=True, 
+                           spaxel_in_arcsec=self._cube_spaxel_arcsec, rotation=self._cube_rotation)
+            if fillup:
+                imgs_.fillup_slices()
+                
+        self.imageslicer[index] = imgs_
+        
+    def get_targetloc(self, waveref=None, inst_index=None):
+        """ """
+        if not self.has_adr():
+            raise ValueError("No ADR loaded. Cannot provide target location")
+            
+        # What do you need
+        if inst_index is not None:
+            waveref = self.get_instrument_bandpass(inst_index).wave_eff
+            
+        if waveref is None:
+            raise ValueError("You need to provide either waveref and inst_index")
+            
+        return self.adr.refract(self._adr_xref, self._adr_yref, imgsl.instrument.lbda)
+            
+    def get_instrument_bandpass(self, inst_index):
+        """ """
+        return self.imageslicer[inst_index].instrument.bandpass
+    
+    
+    def get_spaxel_photometry(self, spaxel_index, inst_index=None):
+        """ """
+        if inst_index is None:
+            inst_index = self.loaded_instruments
+        
+        return np.asarray([self.imageslicer[b_].instrument.count_to_flux(
+                                            self.imageslicer[b_].spaxel_slice.data[spaxel_index]
+                                            )
+                            for b_ in inst_index])
+    def get_instrument_waveeff(self, inst_index=None):
+        """ """
+        if inst_index is None:
+            inst_index = self.loaded_instruments
+        
+        return np.asarray([self.get_instrument_bandpass(b_).wave_eff for b_ in inst_index])
+    # ============== #
+    #   Properties   #
+    # ============== #
+    @property
+    def loaded_instruments(self):
+        """ """
+        return self.imageslicer.keys()
+    
+    def has_cube(self):
+        """ """
+        return hasattr(self, "cube")
+    
+    def has_adr(self):
+        """ """
+        return hasattr(self, "adr")
+
+    
+#
 # Image Slicer
 # 
 
